@@ -142,6 +142,8 @@ const P = {
 const opens: number[] = [];
 const lows: number[] = [];
 const closes: number[] = [];
+/** Bars of closes Wilder RSI averages over. */
+const RSI_BARS = 14;
 /** Wilder RSI state over the closes (14 bars). */
 let rsiGain: number | null = null;
 let rsiLoss: number | null = null;
@@ -174,6 +176,9 @@ function pushBar(batch: Batch): void {
     const h = Number(bar.h) / 1e5;
     const l = Number(bar.l) / 1e5;
     const c = Number(bar.c) / 1e5;
+    // A bar with a non-finite price is corrupt data, not a market move:
+    // skip it entirely so no indicator or setup ever reads NaN.
+    if (!Number.isFinite(o) || !Number.isFinite(h) || !Number.isFinite(l) || !Number.isFinite(c)) continue;
     opens.push(o);
     lows.push(l);
     closes.push(c);
@@ -181,13 +186,13 @@ function pushBar(batch: Batch): void {
       const d = c - rsiLast;
       if (rsiGain === null || rsiLoss === null) {
         rsiFirst.push(d);
-        if (rsiFirst.length === 14) {
-          rsiGain = rsiFirst.reduce((a, x) => a + (x > 0 ? x : 0), 0) / 14;
-          rsiLoss = rsiFirst.reduce((a, x) => a + (x < 0 ? -x : 0), 0) / 14;
+        if (rsiFirst.length === RSI_BARS) {
+          rsiGain = rsiFirst.reduce((a, x) => a + (x > 0 ? x : 0), 0) / RSI_BARS;
+          rsiLoss = rsiFirst.reduce((a, x) => a + (x < 0 ? -x : 0), 0) / RSI_BARS;
         }
       } else {
-        rsiGain = (rsiGain * 13 + Math.max(d, 0)) / 14;
-        rsiLoss = (rsiLoss * 13 + Math.max(-d, 0)) / 14;
+        rsiGain = (rsiGain * (RSI_BARS - 1) + Math.max(d, 0)) / RSI_BARS;
+        rsiLoss = (rsiLoss * (RSI_BARS - 1) + Math.max(-d, 0)) / RSI_BARS;
       }
     }
     rsiLast = c;
